@@ -13,14 +13,14 @@ export const CATEGORIES: Category[] = [
   { code: 6, name: "Visulus", color: "#d97706" },
   { code: 7, name: "Personal Work & Projects", color: "#14b8a6" },
   { code: 8, name: "Exercise", color: "#38bdf8" },
-  { code: 9, name: "Eating", color: "#f97316" },
+  { code: 9, name: "Eating", color: "#fb923c" },
   { code: 10, name: "Cooking and Cleaning", color: "#a3e635" },
   { code: 11, name: "Transport", color: "#64748b" },
   { code: 12, name: "Social", color: "#ec4899" },
   { code: 13, name: "Digital Social", color: "#f472b6" },
   { code: 14, name: "Bible and Prayer", color: "#8b5cf6" },
   { code: 15, name: "Hobbies", color: "#06b6d4" },
-  { code: 16, name: "Waste", color: "#f87171" },
+  { code: 16, name: "Waste", color: "#ef4444" },
 ];
 
 export const UNSET_COLOR = "#374151"; // gray-700 for unset blocks
