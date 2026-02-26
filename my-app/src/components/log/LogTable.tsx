@@ -31,12 +31,16 @@ export function LogTable() {
   const [dirty, setDirty] = useState(false);
   const [labelEdit, setLabelEdit] = useState<LabelEdit | null>(null);
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "dirty">("saved");
+  const [touchSelection, setTouchSelection] = useState<[number, number] | null>(null);
 
-  // Refs for auto-save debounce
+  // Refs
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const codesRef = useRef(codes);
   const labelsRef = useRef(labels);
   const dateRef = useRef(date);
+  const touchSelectionRef = useRef<[number, number] | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   codesRef.current = codes;
   labelsRef.current = labels;
   dateRef.current = date;
@@ -84,26 +88,76 @@ export function LogTable() {
     };
   }, [dirty, codes, labels, doSave]);
 
-  // Save immediately on date change or unmount if dirty
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        // Fire save synchronously isn't possible, but the mutation is already queued
-      }
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, [date]);
 
   const markDirty = useCallback(() => setDirty(true), []);
 
+  const advanceTo = useCallback((target: number) => {
+    if (target < 0 || target >= 288) return;
+    const el = document.querySelector(
+      `[data-code-index="${target}"]`,
+    ) as HTMLInputElement | null;
+    el?.focus();
+    el?.select();
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+
   const onCodeChange = useCallback((index: number, value: number) => {
-    setCodes((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
-    });
-    markDirty();
-  }, [markDirty]);
+    // Clear any pending advance timer
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+
+    const sel = touchSelectionRef.current;
+    if (sel && sel[0] !== sel[1]) {
+      // Fill entire touch selection
+      setCodes((prev) => {
+        const next = [...prev];
+        for (let i = sel[0]; i <= sel[1]; i++) {
+          next[i] = value;
+        }
+        return next;
+      });
+      setTouchSelection(null);
+      touchSelectionRef.current = null;
+      markDirty();
+      // Advance past selection
+      advanceTo(sel[1] + 1);
+    } else {
+      // Single cell change
+      setCodes((prev) => {
+        const next = [...prev];
+        next[index] = value;
+        return next;
+      });
+      markDirty();
+
+      // Auto-advance: immediate for 2-16, delayed for 1
+      if (value >= 2) {
+        // Check focus is still on this cell before advancing
+        requestAnimationFrame(() => {
+          const active = document.activeElement;
+          const expected = document.querySelector(`[data-code-index="${index}"]`);
+          if (active === expected) {
+            advanceTo(index + 1);
+          }
+        });
+      } else if (value === 1) {
+        advanceTimerRef.current = setTimeout(() => {
+          const active = document.activeElement;
+          const expected = document.querySelector(`[data-code-index="${index}"]`);
+          if (active === expected) {
+            advanceTo(index + 1);
+          }
+        }, 400);
+      }
+    }
+  }, [markDirty, advanceTo]);
 
   const onLabelChange = useCallback(
     (index: number, value: string) => {
@@ -152,6 +206,16 @@ export function LogTable() {
     getCellValue,
   });
 
+  // Combined range check: pointer drag OR touch selection
+  const isInRange = useCallback(
+    (index: number): boolean => {
+      if (isInDragRange(index)) return true;
+      if (touchSelection && index >= touchSelection[0] && index <= touchSelection[1]) return true;
+      return false;
+    },
+    [isInDragRange, touchSelection],
+  );
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!isDragging) return;
@@ -170,16 +234,116 @@ export function LogTable() {
 
   const handleNavigate = useCallback(
     (index: number, direction: "up" | "down") => {
+      // Clear auto-advance timer on manual navigation
+      if (advanceTimerRef.current) {
+        clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
       const target = direction === "down" ? index + 1 : index - 1;
-      if (target < 0 || target >= 288) return;
-      const el = document.querySelector(
-        `[data-code-index="${target}"]`,
-      ) as HTMLInputElement | null;
-      el?.focus();
-      el?.select();
+      advanceTo(target);
     },
-    [],
+    [advanceTo],
   );
+
+  // Touch drag-fill and swipe-to-select
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    let mode: "fill" | "select" | null = null;
+    let source: { index: number; value: number } | null = null;
+
+    function getCellIdx(touch: Touch): number | null {
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const cell = el?.closest("[data-code-cell]");
+      if (cell) return parseInt((cell as HTMLElement).dataset.codeCell!, 10);
+      return null;
+    }
+
+    function getRowIdx(touch: Touch): number | null {
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const row = el?.closest("[data-row-index]");
+      if (row) return parseInt((row as HTMLElement).dataset.rowIndex!, 10);
+      return null;
+    }
+
+    function onStart(e: TouchEvent) {
+      const touch = e.touches[0];
+      const idx = getCellIdx(touch);
+      if (idx === null) return;
+
+      const value = codesRef.current[idx];
+      source = { index: idx, value };
+      mode = value > 0 ? "fill" : "select";
+
+      touchSelectionRef.current = [idx, idx];
+      setTouchSelection([idx, idx]);
+    }
+
+    function onMove(e: TouchEvent) {
+      if (!mode || !source) return;
+      e.preventDefault(); // Prevent scrolling while dragging on cells
+
+      const touch = e.touches[0];
+      const idx = getRowIdx(touch);
+      if (idx === null) return;
+
+      const start = Math.min(source.index, idx);
+      const end = Math.max(source.index, idx);
+      touchSelectionRef.current = [start, end];
+      setTouchSelection([start, end]);
+    }
+
+    function onEnd() {
+      if (!mode || !source) return;
+
+      const sel = touchSelectionRef.current;
+      if (mode === "fill" && sel && source.value > 0) {
+        // Drag-fill: apply source value to range
+        const start = sel[0];
+        const end = sel[1];
+        if (start !== end) {
+          // Multi-cell fill
+          const codes = codesRef.current;
+          const next = [...codes];
+          for (let i = start; i <= end; i++) {
+            next[i] = source.value;
+          }
+          setCodes(next);
+          setDirty(true);
+        }
+        setTouchSelection(null);
+        touchSelectionRef.current = null;
+      } else if (mode === "select") {
+        if (sel && sel[0] === sel[1]) {
+          // Single tap on empty cell — clear selection, let normal focus happen
+          setTouchSelection(null);
+          touchSelectionRef.current = null;
+        }
+        // Multi-cell selection: keep highlighted, next input fills all
+      }
+
+      mode = null;
+      source = null;
+    }
+
+    grid.addEventListener("touchstart", onStart, { passive: true });
+    grid.addEventListener("touchmove", onMove, { passive: false });
+    grid.addEventListener("touchend", onEnd);
+
+    return () => {
+      grid.removeEventListener("touchstart", onStart);
+      grid.removeEventListener("touchmove", onMove);
+      grid.removeEventListener("touchend", onEnd);
+    };
+  }, []);
+
+  // Clean up advance timer on unmount
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, []);
 
   const handleLabelClick = useCallback(
     (index: number, rect: DOMRect) => {
@@ -231,6 +395,7 @@ export function LogTable() {
           </div>
         ) : (
           <div
+            ref={gridRef}
             className="grid gap-x-3 gap-y-0"
             style={{
               gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
@@ -250,7 +415,7 @@ export function LogTable() {
                       index={i}
                       code={codes[i]}
                       label={labels[i]}
-                      inDragRange={isInDragRange(i)}
+                      inDragRange={isInRange(i)}
                       isFirst={rowIdx === 0}
                       isLast={rowIdx === colIndices.length - 1}
                       onCodeChange={onCodeChange}

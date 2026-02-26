@@ -72,7 +72,7 @@ export const CodeCell = memo(function CodeCell({
         : "";
 
   return (
-    <div className="relative group flex-1 leading-[0]" onClick={handleClick}>
+    <div className="relative group flex-1 leading-[0]" data-code-cell={index} onClick={handleClick}>
       <input
         ref={inputRef}
         type="text"
