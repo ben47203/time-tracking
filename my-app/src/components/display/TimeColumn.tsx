@@ -74,15 +74,17 @@ export const TimeColumn = memo(function TimeColumn({
             </div>
           ))}
         </div>
-        {/* Blocks */}
-        <div className="flex flex-col gap-px flex-1 min-w-0">
+        {/* Blocks — fixed height container, flex distributes space */}
+        <div
+          className="flex flex-col gap-px flex-1 min-w-0"
+          style={{ height: `${codes.length * blockHeight}px` }}
+        >
           {merged.map((block) => (
             <TimeBlock
               key={block.startIndex}
               code={block.code}
               label={block.label}
               span={block.span}
-              blockHeight={blockHeight}
             />
           ))}
         </div>

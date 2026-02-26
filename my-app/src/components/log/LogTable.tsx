@@ -245,13 +245,19 @@ export function LogTable() {
     [advanceTo],
   );
 
-  // Touch drag-fill and swipe-to-select
+  // Touch long-press → drag-fill / swipe-to-select
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
 
+    const LONG_PRESS_MS = 300;
+    const MOVE_THRESHOLD = 8; // px — cancel long-press if finger moves more
+
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let longPressActive = false;
     let mode: "fill" | "select" | null = null;
     let source: { index: number; value: number } | null = null;
+    let startXY: { x: number; y: number } | null = null;
 
     function getCellIdx(touch: Touch): number | null {
       const el = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -267,6 +273,14 @@ export function LogTable() {
       return null;
     }
 
+    function activateLongPress() {
+      if (!source) return;
+      longPressActive = true;
+      mode = source.value > 0 ? "fill" : "select";
+      touchSelectionRef.current = [source.index, source.index];
+      setTouchSelection([source.index, source.index]);
+    }
+
     function onStart(e: TouchEvent) {
       const touch = e.touches[0];
       const idx = getCellIdx(touch);
@@ -274,17 +288,36 @@ export function LogTable() {
 
       const value = codesRef.current[idx];
       source = { index: idx, value };
-      mode = value > 0 ? "fill" : "select";
+      startXY = { x: touch.clientX, y: touch.clientY };
+      longPressActive = false;
+      mode = null;
 
-      touchSelectionRef.current = [idx, idx];
-      setTouchSelection([idx, idx]);
+      // Start long-press timer
+      longPressTimer = setTimeout(activateLongPress, LONG_PRESS_MS);
     }
 
     function onMove(e: TouchEvent) {
-      if (!mode || !source) return;
-      e.preventDefault(); // Prevent scrolling while dragging on cells
-
       const touch = e.touches[0];
+
+      // Before long-press activates: check if finger moved too far (scrolling)
+      if (!longPressActive && startXY) {
+        const dx = touch.clientX - startXY.x;
+        const dy = touch.clientY - startXY.y;
+        if (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD) {
+          // Cancel long-press — user is scrolling
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+          source = null;
+          startXY = null;
+          return;
+        }
+      }
+
+      if (!longPressActive || !mode || !source) return;
+      e.preventDefault(); // Only prevent scrolling after long-press activated
+
       const idx = getRowIdx(touch);
       if (idx === null) return;
 
@@ -295,15 +328,26 @@ export function LogTable() {
     }
 
     function onEnd() {
-      if (!mode || !source) return;
+      // Clear long-press timer
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+
+      if (!longPressActive || !mode || !source) {
+        // Long-press didn't activate — normal tap/scroll
+        source = null;
+        startXY = null;
+        longPressActive = false;
+        mode = null;
+        return;
+      }
 
       const sel = touchSelectionRef.current;
       if (mode === "fill" && sel && source.value > 0) {
-        // Drag-fill: apply source value to range
         const start = sel[0];
         const end = sel[1];
         if (start !== end) {
-          // Multi-cell fill
           const codes = codesRef.current;
           const next = [...codes];
           for (let i = start; i <= end; i++) {
@@ -316,15 +360,17 @@ export function LogTable() {
         touchSelectionRef.current = null;
       } else if (mode === "select") {
         if (sel && sel[0] === sel[1]) {
-          // Single tap on empty cell — clear selection, let normal focus happen
+          // Long-press on single cell — clear selection
           setTouchSelection(null);
           touchSelectionRef.current = null;
         }
         // Multi-cell selection: keep highlighted, next input fills all
       }
 
-      mode = null;
       source = null;
+      startXY = null;
+      longPressActive = false;
+      mode = null;
     }
 
     grid.addEventListener("touchstart", onStart, { passive: true });
@@ -335,6 +381,7 @@ export function LogTable() {
       grid.removeEventListener("touchstart", onStart);
       grid.removeEventListener("touchmove", onMove);
       grid.removeEventListener("touchend", onEnd);
+      if (longPressTimer) clearTimeout(longPressTimer);
     };
   }, []);
 

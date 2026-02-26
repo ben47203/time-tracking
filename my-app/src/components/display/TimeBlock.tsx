@@ -5,29 +5,24 @@ interface TimeBlockProps {
   code: number;
   label?: string;
   span: number;
-  /** Pixels per 5-min block. */
-  blockHeight: number;
 }
 
 export const TimeBlock = memo(function TimeBlock({
   code,
   label,
   span,
-  blockHeight,
 }: TimeBlockProps) {
   const color = getCategoryColor(code);
-  const height = span * blockHeight;
 
   return (
     <div
-      className="flex items-center justify-center overflow-hidden rounded-sm"
+      className="flex items-center justify-center overflow-hidden rounded-sm min-h-0"
       style={{
         backgroundColor: color,
-        height: `${height}px`,
-        minHeight: `${height}px`,
+        flex: span,
       }}
     >
-      {label && span >= 2 && height >= 16 && (
+      {label && span >= 2 && (
         <span className="text-[9px] leading-none text-white/80 px-0.5 truncate">
           {label}
         </span>
