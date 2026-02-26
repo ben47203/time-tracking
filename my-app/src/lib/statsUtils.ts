@@ -1,5 +1,5 @@
 import { CATEGORIES } from "./categories";
-import { MINUTES_PER_BLOCK } from "./timeUtils";
+import { MINUTES_PER_BLOCK, shiftDate, parseDate } from "./timeUtils";
 
 interface TimeEntry {
   date: string;
@@ -28,6 +28,26 @@ export function totalsToChartData(
     color: c.color,
     code: c.code,
   }));
+}
+
+/** Weekly data: for each day in a 7-day range, total hours per category. */
+export function weeklyStackedData(
+  entries: TimeEntry[],
+  weekStart: string,
+): { date: string; [key: string]: number | string }[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = shiftDate(weekStart, i);
+    const entry = entries.find((e) => e.date === d);
+    const totals = entry ? dayCategoryTotals(entry.codes) : new Map<number, number>();
+    const dayName = parseDate(d).toLocaleDateString("en-GB", { weekday: "short" });
+    const row: { date: string; [key: string]: number | string } = {
+      date: `${dayName} ${d.slice(8)}`,
+    };
+    for (const cat of CATEGORIES) {
+      row[cat.name] = (totals.get(cat.code) ?? 0) / 60;
+    }
+    return row;
+  });
 }
 
 /** Monthly data: for each day, total hours per category. */

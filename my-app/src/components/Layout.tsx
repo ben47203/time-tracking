@@ -1,7 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router";
 
 const NAV_LINKS = [
-  { to: "/", label: "Home" },
   { to: "/time-tracking", label: "Time Tracking" },
   { to: "/log", label: "Log" },
 ];

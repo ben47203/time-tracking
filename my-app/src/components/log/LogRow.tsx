@@ -7,10 +7,13 @@ interface LogRowProps {
   code: number;
   label: string;
   inDragRange: boolean;
+  isFirst: boolean;
+  isLast: boolean;
   onCodeChange: (index: number, value: number) => void;
-  onLabelChange: (index: number, value: string) => void;
   onDragStart: (index: number, value: number, e: React.PointerEvent) => void;
   onCellClick: (index: number, shiftKey: boolean) => void;
+  onLabelClick: (index: number, rect: DOMRect) => void;
+  onNavigate: (index: number, direction: "up" | "down") => void;
 }
 
 export const LogRow = memo(function LogRow({
@@ -18,43 +21,52 @@ export const LogRow = memo(function LogRow({
   code,
   label,
   inDragRange,
+  isFirst,
+  isLast,
   onCodeChange,
-  onLabelChange,
   onDragStart,
   onCellClick,
+  onLabelClick,
+  onNavigate,
 }: LogRowProps) {
-  const handleLabelChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      onLabelChange(index, e.target.value);
+  const handleLabelClick = useCallback(
+    (e: React.MouseEvent) => {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      onLabelClick(index, rect);
     },
-    [index, onLabelChange],
+    [index, onLabelClick],
   );
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-0.5 ${
-        index % 12 === 0 ? "border-t border-gray-700" : ""
-      }`}
+      className="flex items-center h-5"
       data-row-index={index}
     >
-      <span className="text-xs text-gray-500 w-12 text-right font-mono tabular-nums">
+      <span className="text-[10px] text-gray-500 w-9 text-right pr-2.5 font-mono tabular-nums shrink-0 leading-5">
         {blockToTime(index)}
       </span>
       <CodeCell
         index={index}
         value={code}
         inDragRange={inDragRange}
+        isFirst={isFirst}
+        isLast={isLast}
         onValueChange={onCodeChange}
         onDragStart={onDragStart}
         onClick={onCellClick}
+        onNavigate={onNavigate}
       />
-      <input
-        type="text"
-        value={label}
-        onChange={handleLabelChange}
-        placeholder=""
-        className="flex-1 h-7 px-2 text-sm rounded bg-gray-800 border border-gray-700 text-gray-200 focus:outline-none focus:border-blue-500"
-      />
+      <button
+        onClick={handleLabelClick}
+        className={`w-5 h-5 flex items-center justify-center text-[10px] shrink-0 transition-colors ${
+          label
+            ? "bg-gray-700 text-blue-400 hover:bg-gray-600"
+            : "text-gray-600 hover:text-gray-400 hover:bg-gray-800"
+        }`}
+        title={label || "Add label"}
+      >
+        {label ? "L" : "+"}
+      </button>
     </div>
   );
 });

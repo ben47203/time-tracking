@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { blockToTime } from "../../lib/timeUtils";
+import { blockToTime, BLOCKS_PER_HOUR } from "../../lib/timeUtils";
 import { TimeBlock } from "./TimeBlock";
 
 interface MergedBlock {
@@ -10,12 +10,10 @@ interface MergedBlock {
 }
 
 interface TimeColumnProps {
-  /** Global start index for this column (e.g. 0, 48, 96...) */
   startIndex: number;
-  /** 48-element slice of codes */
   codes: number[];
-  /** 48-element slice of labels */
   labels: string[];
+  blockHeight: number;
 }
 
 function mergeBlocks(
@@ -29,7 +27,6 @@ function mergeBlocks(
     const code = codes[i];
     const label = labels[i];
     let span = 1;
-    // Merge adjacent blocks with same code and label
     while (
       i + span < codes.length &&
       codes[i + span] === code &&
@@ -47,41 +44,45 @@ export const TimeColumn = memo(function TimeColumn({
   startIndex,
   codes,
   labels,
+  blockHeight,
 }: TimeColumnProps) {
   const merged = useMemo(
     () => mergeBlocks(codes, labels, startIndex),
     [codes, labels, startIndex],
   );
 
-  const startHour = Math.floor(startIndex / 12);
-  const endHour = startHour + 4;
+  const hoursInColumn = codes.length / BLOCKS_PER_HOUR;
+  const startHour = Math.floor(startIndex / BLOCKS_PER_HOUR);
+  const hourHeight = BLOCKS_PER_HOUR * blockHeight;
+  const lastBlockIndex = startIndex + codes.length - 1;
 
   return (
-    <div className="flex flex-col">
-      <div className="text-xs text-gray-500 font-mono mb-1">
-        {blockToTime(startIndex)} – {blockToTime(startIndex + 47)}
+    <div className="flex flex-col min-w-0">
+      <div className="text-[9px] text-gray-500 font-mono mb-0.5">
+        {blockToTime(startIndex)} – {blockToTime(lastBlockIndex)}
       </div>
-      <div className="flex gap-0.5">
-        {/* Time labels column */}
-        <div className="flex flex-col">
-          {Array.from({ length: endHour - startHour }, (_, h) => (
+      <div className="flex gap-px">
+        {/* Hour labels */}
+        <div className="flex flex-col shrink-0">
+          {Array.from({ length: hoursInColumn }, (_, h) => (
             <div
               key={h}
-              className="text-[10px] text-gray-600 font-mono text-right pr-1"
-              style={{ height: "240px" }} // 12 blocks * 20px
+              className="text-[9px] text-gray-600 font-mono text-right pr-0.5 leading-none"
+              style={{ height: `${hourHeight}px` }}
             >
               {String(startHour + h).padStart(2, "0")}
             </div>
           ))}
         </div>
-        {/* Colored blocks column */}
-        <div className="flex flex-col gap-px flex-1">
+        {/* Blocks */}
+        <div className="flex flex-col gap-px flex-1 min-w-0">
           {merged.map((block) => (
             <TimeBlock
               key={block.startIndex}
               code={block.code}
               label={block.label}
               span={block.span}
+              blockHeight={blockHeight}
             />
           ))}
         </div>

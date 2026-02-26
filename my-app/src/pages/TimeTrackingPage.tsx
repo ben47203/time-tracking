@@ -21,7 +21,7 @@ export function TimeTrackingPage() {
         <DatePicker date={date} onPrev={prev} onNext={next} />
       </div>
 
-      <Legend />
+      <Legend codes={codes} />
 
       {entry === undefined ? (
         <div className="text-gray-400 text-sm">Loading...</div>

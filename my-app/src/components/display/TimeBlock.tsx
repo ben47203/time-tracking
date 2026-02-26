@@ -4,17 +4,19 @@ import { getCategoryColor } from "../../lib/categories";
 interface TimeBlockProps {
   code: number;
   label?: string;
-  /** Number of consecutive 5-min blocks this merged cell spans. */
   span: number;
+  /** Pixels per 5-min block. */
+  blockHeight: number;
 }
 
 export const TimeBlock = memo(function TimeBlock({
   code,
   label,
   span,
+  blockHeight,
 }: TimeBlockProps) {
   const color = getCategoryColor(code);
-  const height = span * 20; // 20px per block
+  const height = span * blockHeight;
 
   return (
     <div
@@ -25,8 +27,8 @@ export const TimeBlock = memo(function TimeBlock({
         minHeight: `${height}px`,
       }}
     >
-      {label && span >= 2 && (
-        <span className="text-[10px] text-white/80 px-1 truncate">
+      {label && span >= 2 && height >= 16 && (
+        <span className="text-[9px] leading-none text-white/80 px-0.5 truncate">
           {label}
         </span>
       )}

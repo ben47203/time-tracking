@@ -2,9 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
-  PieChart,
-  Pie,
-  Cell,
   AreaChart,
   Area,
   XAxis,
@@ -14,8 +11,7 @@ import {
 } from "recharts";
 import { CATEGORIES } from "../../lib/categories";
 import {
-  dayCategoryTotals,
-  totalsToChartData,
+  weeklyStackedData,
   monthlyStackedData,
   yearlyStackedData,
   computePersonalBests,
@@ -27,13 +23,82 @@ import {
   getYearStart,
   getYearEnd,
   shiftDate,
-  parseDate,
 } from "../../lib/timeUtils";
 
 type Tab = "week" | "month" | "year" | "bests";
 
 interface StatsPanelProps {
   date: string;
+}
+
+/** Custom tooltip that hides categories with 0 hours. */
+function FilteredTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+}) {
+  if (!active || !payload) return null;
+
+  const nonZero = payload.filter((p) => p.value > 0);
+  if (nonZero.length === 0) return null;
+
+  return (
+    <div className="bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-xs shadow-lg">
+      <div className="text-gray-300 mb-1">{label}</div>
+      {nonZero.map((p) => (
+        <div key={p.name} className="flex items-center gap-2 py-px">
+          <div
+            className="w-2 h-2 rounded-sm shrink-0"
+            style={{ backgroundColor: p.color }}
+          />
+          <span className="text-gray-300 flex-1">{p.name}</span>
+          <span className="text-gray-400 font-mono ml-2">{p.value.toFixed(1)}h</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Shared stacked area chart used by Week, Month, and Year views. */
+function StackedChart({
+  data,
+  xKey,
+  yLabel,
+  height = 400,
+}: {
+  data: Record<string, number | string>[];
+  xKey: string;
+  yLabel: string;
+  height?: number;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data}>
+        <XAxis dataKey={xKey} tick={{ fontSize: 10, fill: "#9ca3af" }} />
+        <YAxis
+          tick={{ fontSize: 10, fill: "#9ca3af" }}
+          label={{
+            value: yLabel,
+            angle: -90,
+            position: "insideLeft",
+            style: { fill: "#9ca3af", fontSize: 12 },
+          }}
+        />
+        <Tooltip content={<FilteredTooltip />} />
+        {CATEGORIES.map((cat) => (
+          <Area
+            key={cat.code}
+            type="monotone"
+            dataKey={cat.name}
+            stackId="1"
+            fill={cat.color}
+            stroke={cat.color}
+            fillOpacity={0.8}
+          />
+        ))}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 }
 
 export function StatsPanel({ date }: StatsPanelProps) {
@@ -97,60 +162,14 @@ function WeekView({
   entries: { date: string; codes: number[]; labels: string[] }[];
   weekStart: string;
 }) {
-  const days = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = shiftDate(weekStart, i);
-      const entry = entries.find((e) => e.date === d);
-      const totals = entry ? dayCategoryTotals(entry.codes) : new Map();
-      const chartData = totalsToChartData(totals);
-      const dayName = parseDate(d).toLocaleDateString("en-GB", {
-        weekday: "short",
-      });
-      return { date: d, dayName, chartData, hasData: chartData.length > 0 };
-    });
-  }, [entries, weekStart]);
+  const data = useMemo(() => weeklyStackedData(entries, weekStart), [entries, weekStart]);
 
-  return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-      {days.map((day) => (
-        <div key={day.date} className="flex flex-col items-center gap-1">
-          <span className="text-xs text-gray-400">
-            {day.dayName} {day.date.slice(8)}
-          </span>
-          {day.hasData ? (
-            <PieChart width={120} height={120}>
-              <Pie
-                data={day.chartData}
-                dataKey="value"
-                cx="50%"
-                cy="50%"
-                innerRadius={25}
-                outerRadius={50}
-                paddingAngle={1}
-              >
-                {day.chartData.map((d, idx) => (
-                  <Cell key={idx} fill={d.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value: number | undefined) => value != null ? `${value.toFixed(1)}h` : ""}
-                contentStyle={{
-                  backgroundColor: "#1f2937",
-                  border: "1px solid #374151",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                }}
-              />
-            </PieChart>
-          ) : (
-            <div className="w-[120px] h-[120px] flex items-center justify-center text-gray-600 text-xs">
-              No data
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+  const hasAnyData = entries.length > 0;
+  if (!hasAnyData) {
+    return <div className="text-gray-400 text-sm">No data for this week.</div>;
+  }
+
+  return <StackedChart data={data} xKey="date" yLabel="Hours" />;
 }
 
 function MonthView({
@@ -164,34 +183,7 @@ function MonthView({
     return <div className="text-gray-400 text-sm">No data for this month.</div>;
   }
 
-  return (
-    <ResponsiveContainer width="100%" height={400}>
-      <AreaChart data={data}>
-        <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} />
-        <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} label={{ value: "Hours", angle: -90, position: "insideLeft", style: { fill: "#9ca3af", fontSize: 12 } }} />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            fontSize: "12px",
-          }}
-          formatter={(value: number | undefined) => value != null ? `${value.toFixed(1)}h` : ""}
-        />
-        {CATEGORIES.map((cat) => (
-          <Area
-            key={cat.code}
-            type="monotone"
-            dataKey={cat.name}
-            stackId="1"
-            fill={cat.color}
-            stroke={cat.color}
-            fillOpacity={0.8}
-          />
-        ))}
-      </AreaChart>
-    </ResponsiveContainer>
-  );
+  return <StackedChart data={data} xKey="date" yLabel="Hours" />;
 }
 
 function YearView({
@@ -205,34 +197,7 @@ function YearView({
     return <div className="text-gray-400 text-sm">No data for this year.</div>;
   }
 
-  return (
-    <ResponsiveContainer width="100%" height={400}>
-      <AreaChart data={data}>
-        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#9ca3af" }} />
-        <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} label={{ value: "Avg Hours/Day", angle: -90, position: "insideLeft", style: { fill: "#9ca3af", fontSize: 12 } }} />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: "6px",
-            fontSize: "12px",
-          }}
-          formatter={(value: number | undefined) => value != null ? `${value.toFixed(1)}h` : ""}
-        />
-        {CATEGORIES.map((cat) => (
-          <Area
-            key={cat.code}
-            type="monotone"
-            dataKey={cat.name}
-            stackId="1"
-            fill={cat.color}
-            stroke={cat.color}
-            fillOpacity={0.8}
-          />
-        ))}
-      </AreaChart>
-    </ResponsiveContainer>
-  );
+  return <StackedChart data={data} xKey="month" yLabel="Avg Hours/Day" />;
 }
 
 function BestsView({
