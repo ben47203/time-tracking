@@ -36,7 +36,7 @@ export const TimeBlock = memo(function TimeBlock({
             style={{
               textShadow: showLabel
                 ? "0 0 4px rgba(0,0,0,0.7), 0 1px 2px rgba(0,0,0,0.5)"
-                : "0 0 2px rgba(0,0,0,0.3)",
+                : "0 0 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)",
               display: "-webkit-box",
               WebkitLineClamp: maxLines,
               WebkitBoxOrient: "vertical",
