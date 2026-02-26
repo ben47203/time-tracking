@@ -6,11 +6,11 @@ export interface Category {
 
 export const CATEGORIES: Category[] = [
   { code: 1, name: "Sleep", color: "#1e293b" },
-  { code: 2, name: "Daily Organisation", color: "#fbbf24" },
+  { code: 2, name: "Daily Organisation", color: "#facc15" },
   { code: 3, name: "Paid Work", color: "#22c55e" },
   { code: 4, name: "University Study", color: "#3b82f6" },
   { code: 5, name: "UQIES", color: "#6366f1" },
-  { code: 6, name: "Visulus", color: "#f59e0b" },
+  { code: 6, name: "Visulus", color: "#d97706" },
   { code: 7, name: "Personal Work & Projects", color: "#14b8a6" },
   { code: 8, name: "Exercise", color: "#38bdf8" },
   { code: 9, name: "Eating", color: "#f97316" },
@@ -20,7 +20,7 @@ export const CATEGORIES: Category[] = [
   { code: 13, name: "Digital Social", color: "#f472b6" },
   { code: 14, name: "Bible and Prayer", color: "#8b5cf6" },
   { code: 15, name: "Hobbies", color: "#06b6d4" },
-  { code: 16, name: "Waste", color: "#ef4444" },
+  { code: 16, name: "Waste", color: "#f87171" },
 ];
 
 export const UNSET_COLOR = "#374151"; // gray-700 for unset blocks
